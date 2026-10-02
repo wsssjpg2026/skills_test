@@ -1,0 +1,21 @@
+{
+  "name": "@orch/storage-timescale",
+  "version": "0.1.0",
+  "license": "Apache-2.0",
+  "type": "module",
+  "description": "Postgres/TimescaleDB implementation of the storage port (config tables, tag_history hypertable, journal tables)",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@orch/storage": "*"
+  }
+}
