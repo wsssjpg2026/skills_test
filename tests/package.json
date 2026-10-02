@@ -1,0 +1,20 @@
+{
+  "name": "@orch/tests-drivers-track",
+  "private": true,
+  "description": "Independent test oracle (drivers/contract/storage/northbound track). Authored from spec issue #1 + /tmp/spec-impl-notes/architecture.md only. Test implementer #2, branch test/spec-drivers.",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:contract": "vitest run tests/contract",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/ws": "^8.5.10",
+    "aedes": "^0.51.0",
+    "mqtt": "^5.10.0",
+    "typescript": "^5.6.0",
+    "vitest": "^3.2.0",
+    "ws": "^8.18.0"
+  }
+}
