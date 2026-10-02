@@ -1,0 +1,6 @@
+# 切换 kernel 到 Postgres/Timescale 存储（叠加在 docker-compose.yml 之上）。
+# storage-timescale 实现随工单 #9 落地；在那之前 ready 探针会如实报告存储不可用。
+services:
+  kernel:
+    environment:
+      ORCH_CONFIG: /app/orch.config.postgres.json
