@@ -20,10 +20,10 @@ export interface FlowSpec {
   version?: number;
   nodes: FlowNodeBase[];
   edges: { from: string; port: string; to: string }[];
-  // A5 (assumption): flow-level trigger bindings for MES event pushes (§2.6 "event
-  // push → flow trigger binding, same as webhook"). Shape assumed:
-  // triggers: [{ kind: 'mes', op: '<operation>' }, { kind: 'webhook', token: '...' }]
-  triggers?: { kind: string; op?: string; token?: string; inputTemplate?: object }[];
+  // A5 (ADJUDICATED, adjudications.md): flow-level trigger bindings —
+  // [{kind:'webhook'} | {kind:'mes', op}]. A matching inbound MES event enqueues a
+  // task with input = payload; webhook tokens live on the Flow resource, not here.
+  triggers?: Array<{ kind: 'webhook' } | { kind: 'mes'; op: string }>;
 }
 
 let seq = 0;

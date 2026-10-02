@@ -6,7 +6,27 @@ import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { OrchApi } from './api.ts';
+
+/**
+ * A3 (ADJUDICATED, adjudications.md): the deterministic test-auth seam is env
+ * ORCH_ADMIN_PASSWORD, exposed by @orch/testing's bootKernel/spawnKernel as a
+ * `bootstrapAdminPassword` option that maps to it. The password is derived from the
+ * storage location: the admin is seeded on FIRST boot only, so a restart on the same
+ * dataDir (kernel SIGKILL tests) must present the same password, while a fresh temp
+ * dataDir gets a fresh unique one. No password guessing, no log parsing.
+ */
+function adminPasswordFor(dataDir: string): string {
+  return createHash('sha256').update(`orch-test-admin:${dataDir}`).digest('base64url');
+}
+
+async function loginAdmin(port: number, password: string): Promise<string> {
+  const api = new OrchApi(`http://127.0.0.1:${port}`);
+  const login = await api.login('admin', password);
+  if (!login?.token) throw new Error('A3: login with the seeded admin password returned no token');
+  return login.token;
+}
 
 export interface PluginSpec {
   /** manifest id, e.g. 'stub-reference-plugin' — channels reference it as `driver` */
@@ -60,41 +80,22 @@ export function baseConfig(dataDir: string, pluginsDir: string): OrchConfig {
       restart: { initialMs: 200, maxMs: 2_000, maxRestarts: 5, windowMs: 600_000 },
     },
     engine: { wal: { fsync: 'always' }, snapshot: { intervalMs: 2_000, minEvents: 100 } },
+    // A3 (ADJUDICATED): boolean only — the test password comes from env
+    // ORCH_ADMIN_PASSWORD via the harness's bootstrapAdminPassword option.
     auth: { bootstrapAdmin: true },
   };
 }
 
 /**
- * A3 (assumption): test auth — the doc's first-boot admin password is printed to
- * the log once, which is unusable from tests. We try, in order: a token exposed on
- * the boot harness, login with ORCH_TEST_ADMIN_PASSWORD, login with a config-driven
- * bootstrap password, login with the conventional dev default "admin".
+ * A3 (ADJUDICATED): resolve an admin token through the ruled seam — the boot harness
+ * seeded the admin password from our `bootstrapAdminPassword` option (mapped to env
+ * ORCH_ADMIN_PASSWORD), so we log in with exactly that password.
  */
-export async function resolveToken(harness: any): Promise<string> {
+export async function resolveToken(harness: any, password: string): Promise<string> {
   for (const k of ['token', 'adminToken', 'bootstrapToken']) {
     if (typeof harness?.[k] === 'string' && harness[k]) return harness[k];
   }
-  const port = harnessPort(harness);
-  const api = new OrchApi(`http://127.0.0.1:${port}`);
-  const candidates = [
-    process.env.ORCH_TEST_ADMIN_PASSWORD,
-    harness?.config?.auth?.bootstrapAdminPassword,
-    harness?.config?.auth?.password,
-    'orch-test-admin',
-    'admin',
-  ].filter(Boolean) as string[];
-  for (const pw of candidates) {
-    try {
-      const r = await api.login('admin', pw);
-      if (r?.token) return r.token;
-    } catch {
-      /* try next */
-    }
-  }
-  throw new Error(
-    'A3: could not obtain an admin token (tried harness token + login candidates). ' +
-      'Adjudicate the test-auth seam: expose a token on the boot harness or allow a fixed bootstrap password in config.',
-  );
+  return loginAdmin(harnessPort(harness), password);
 }
 
 export function harnessPort(harness: any): number {
@@ -128,11 +129,12 @@ export async function bootOrch(opts: {
   const pluginsDir = await writePluginsDir(opts.plugins, opts.pluginsDir);
   let config = baseConfig(dataDir, pluginsDir);
   if (opts.config) config = opts.config(config);
-  const harness = await bootKernel({ config, pluginsDir });
+  const adminPassword = adminPasswordFor(dataDir);
+  const harness = await bootKernel({ config, pluginsDir, bootstrapAdminPassword: adminPassword });
   await harness.start?.();
   const port = harnessPort(harness);
   const baseUrl = `http://127.0.0.1:${port}`;
-  const token = await resolveToken(harness);
+  const token = await resolveToken(harness, adminPassword);
   const api = new OrchApi(baseUrl, token);
   return {
     harness,
@@ -151,6 +153,7 @@ export async function bootOrch(opts: {
  * Spawn the kernel as a real child process (§5.1) for power-loss tests.
  * A4 (assumption): spawnKernel({configDir}) reads <configDir>/orch.config.json and
  * returns a handle with the listening port and kill()/stop().
+ * A3 (ADJUDICATED): admin password seeded via the bootstrapAdminPassword option.
  */
 export async function spawnOrch(opts: {
   plugins: PluginSpec[];
@@ -164,10 +167,11 @@ export async function spawnOrch(opts: {
   if (opts.config) config = opts.config(config);
   await mkdir(path.dirname(path.join(opts.configDir, 'orch.config.json')), { recursive: true });
   await writeFile(path.join(opts.configDir, 'orch.config.json'), JSON.stringify(config, null, 2));
-  const handle = await spawnKernel({ configDir: opts.configDir });
+  const adminPassword = adminPasswordFor(dataDir);
+  const handle = await spawnKernel({ configDir: opts.configDir, bootstrapAdminPassword: adminPassword });
   const port = harnessPort(handle);
   const baseUrl = `http://127.0.0.1:${port}`;
-  const token = await resolveToken(handle);
+  const token = await resolveToken(handle, adminPassword);
   const api = new OrchApi(baseUrl, token);
   return {
     harness: handle,

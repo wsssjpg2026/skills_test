@@ -160,18 +160,21 @@ test('in-flight on reconnect — idempotent re-sent with the SAME id; peer dedup
   expect(new Set(reqs.map((r) => r.id)).size).toBe(1);
 }, 60_000);
 
-test('MES event push triggers a bound flow (A5 assumption on trigger binding shape)', async () => {
+test('MES event push triggers a bound flow with input = payload (A5 ADJUDICATED)', async () => {
+  // A5 ruling: flow top-level triggers [{kind:'mes', op}] — an inbound MES
+  // type:"event" whose op matches enqueues a task with input = payload.
   const spec = delayChainFlow('mes-trigger-flow', 2, 100);
   spec.triggers = [{ kind: 'mes', op: 'startPick' }];
   const f = await k.api.createFlow({ name: 'mes-trigger-flow', spec });
   const before = (await k.api.listTasks(`?flowId=${f.flowId}`)).total;
   peer.sendEvent('startPick', { order: 'WO-123' });
-  await k.api.waitFor(
-    async () => (await k.api.listTasks(`?flowId=${f.flowId}`)).total,
-    (n) => n === before + 1,
+  const page = await k.api.waitFor(
+    async () => await k.api.listTasks(`?flowId=${f.flowId}`),
+    (p) => p.total === before + 1,
     15_000,
     200,
   );
+  expect(page.items.at(-1)?.input).toEqual({ order: 'WO-123' }); // input = event payload
 });
 
 test('heartbeat: kernel pings the MES peer within the 30 s heartbeat interval', async () => {

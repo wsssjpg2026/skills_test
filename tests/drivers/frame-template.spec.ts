@@ -2,8 +2,10 @@
 // Frame-template driver (ticket #7) — config-only parsing of a private TCP protocol:
 // start delimiter / length field / checksum / escape are all described by channel
 // CONFIG (no code). Bad-checksum and truncated frames are discarded and counted
-// WITHOUT disconnecting. The frame grammar is assumption A6 (doc gives the feature
-// set, not the config schema); fixtures live in support/peers/frame-device.ts.
+// WITHOUT disconnecting. A6 (ADJUDICATED): the fixture grammar in
+// support/peers/frame-device.ts is the NORMATIVE sample of the config grammar; A14
+// (ADJUDICATED): the discard counter is the reserved system tag
+// <channel>.<device>.__bad_frames (uint64, monotonic), visible like any tag.
 import { test, expect, beforeAll, afterAll } from 'vitest';
 import path from 'node:path';
 import { bootOrch, REPO_ROOT, cleanupDir, type BootedKernel } from '../support/boot.ts';
@@ -38,8 +40,14 @@ beforeAll(async () => {
   tTemp = (await k.api.createTag({ deviceId, name: 'temp', dataType: 'uint16', address: 'u16@0', access: 'read', scanPeriodMs: 1_000 })).id;
   tPress = (await k.api.createTag({ deviceId, name: 'pressure', dataType: 'uint16', address: 'u16@2', access: 'read', scanPeriodMs: 1_000 })).id;
   tState = (await k.api.createTag({ deviceId, name: 'state', dataType: 'uint16', address: 'u8@4', access: 'read', scanPeriodMs: 1_000 })).id;
-  // Wait for the driver to connect to the device.
-  await new Promise((r) => setTimeout(r, 1_500));
+  // Positive wait (no fixed sleep): all three tags are answerable via /tags/values
+  // once the driver has connected to the device stub.
+  await k.api.waitFor(
+    () => k.api.tagValues({ ids: [tTemp, tPress, tState] }),
+    (v) => v.samples.length === 3 && v.samples.every((s: any) => s.ts),
+    15_000,
+    200,
+  );
 }, 60_000);
 
 afterAll(async () => {
@@ -102,18 +110,41 @@ test('bad-checksum and truncated frames are discarded WITHOUT disconnect (ticket
   );
 });
 
-test('A14 (assumption-soft): if the channel object exposes a bad-frame counter, it counts the discards', async () => {
-  // The doc requires "校验错误的帧被丢弃并计数" (discarded AND counted) but does not
-  // specify the observation surface. If any counter-ish field is exposed on the
-  // channel or its diagnostics, assert it is positive; else this stays soft and the
-  // surface needs adjudication (see test-map A14).
-  const ch: any = await k.api.getChannel(channelId);
-  const counters = Object.entries(ch ?? {})
-    .filter(([key, v]) => /discard|bad.?frame|frame.?error|crc/i.test(key) && typeof v === 'number')
-    .map(([, v]) => v as number);
-  if (counters.length > 0) {
-    for (const c of counters) expect(c).toBeGreaterThan(0);
-  }
+test('A14 (ADJUDICATED): discards are counted on the reserved system tag <channel>.<device>.__bad_frames', async () => {
+  // A14 ruling: each frame-template device gets a reserved system tag
+  // frame.privdev.__bad_frames (uint64, monotonically increasing count of discarded
+  // frames), visible via /tags/values (and WS/history) like any tag. The driver owns
+  // it — tests must not create it, only read it by path.
+  const COUNTER_PATH = 'frame.privdev.__bad_frames';
+  // Earlier tests discarded 3 frames (2 bad-checksum + 1 truncated): baseline >= 3.
+  const baseline = await k.api.waitFor(
+    () => k.api.tagValues({ filter: COUNTER_PATH }),
+    (v) => v.samples.length >= 1 && typeof v.samples[0].value === 'number' && (v.samples[0].value as number) >= 3,
+    15_000,
+    200,
+  );
+  const base = baseline.samples[0].value as number;
+  expect(Number.isInteger(base)).toBe(true); // uint64 counter surface
+
+  // Exactly two more discards → counter advances by exactly 2 (monotonic, no drift).
+  stub.send(buildBadChecksumFrame(777, 1, 1), buildTruncatedFrame());
+  await k.api.waitFor(
+    () => k.api.tagValues({ filter: COUNTER_PATH }),
+    (v) => (v.samples[0]?.value as number) === base + 2,
+    15_000,
+    200,
+  );
+
+  // Good frames never bump the counter: send a valid frame, counter stays put.
+  stub.send(buildFrame(310, 2010, 6));
+  await k.api.waitFor(
+    () => k.api.tagValues({ ids: [tTemp] }),
+    (v) => v.samples[0]?.value === 310,
+    10_000,
+  );
+  const counterNow = await k.api.tagValues({ filter: COUNTER_PATH });
+  expect(counterNow.samples[0]?.value).toBe(base + 2);
+
   const test = await k.api.testChannel(channelId, 10_000);
   expect(test.ok).toBe(true); // channel still healthy after bad frames
 });

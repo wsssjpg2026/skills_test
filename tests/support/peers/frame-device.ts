@@ -1,8 +1,11 @@
 // [test-support] Doc-derived stub — REWIRED AT MERGE (dedup with the mock private-protocol
 // device of ticket #7). TCP device that streams frames built from a template descriptor:
 // [start 2B][len u16 BE = payload length][payload nB][crc16-modbus of payload, 2B LE].
-// The template config below is the grammar ASSUMED for @orch/driver-frametemplate
-// (A6 in test-map-drivers.md) — both this stub and the channel fixtures in
+// NORMATIVE GRAMMAR SAMPLE per adjudications.md A6: the template config below
+// (startDelimiterHex / length{offset,size,endian} / checksum{type,covers,size,endian} /
+// escape{escapeHex,map}) is the single normative sample of the frame-template config
+// grammar — the #7 implementer matches it; any conflict is adjudicated at the
+// integration checkpoint, not silently. Both this stub and the channel fixtures in
 // frame-template.spec.ts derive from frameFixture(), so rewiring is one edit.
 import net from 'node:net';
 

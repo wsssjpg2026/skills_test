@@ -59,10 +59,14 @@ test('ring buffer evicts oldest samples beyond the 10 000/tag bound and keeps th
     (v) => v.samples[0]?.value === TOTAL - 1 && v.samples[0]?.quality === 'good',
     Math.ceil(TOTAL * 3 / 1000) + 20_000, // generous: 1ms cadence script + flush margins
   );
-  // Allow the batched history append to flush (§3.2: batched 250 ms / 5 000 samples).
-  await new Promise((r) => setTimeout(r, 1_500));
-
-  const { samples } = await k.api.history(tagId, `?from=1970-01-01T00:00:00.000Z&to=2999-01-01T00:00:00.000Z&limit=100000&order=asc`);
+  // Positive wait for the batched history append (§3.2: batched 250 ms / 5 000
+  // samples): the ring settles at exactly its bound once every append flushed.
+  const { samples } = await k.api.waitFor(
+    () => k.api.history(tagId, `?from=1970-01-01T00:00:00.000Z&to=2999-01-01T00:00:00.000Z&limit=100000&order=asc`),
+    (r) => r.samples.length === BOUND,
+    20_000,
+    250,
+  );
   expect(samples.length).toBe(BOUND);
   expect((samples[0] as any).value).toBe(TOTAL - BOUND); // oldest survivor = value 50
   expect((samples[BOUND - 1] as any).value).toBe(TOTAL - 1); // newest retained

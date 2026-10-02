@@ -52,8 +52,13 @@ beforeAll(async () => {
     (v) => v.samples[0]?.value === N,
     (N * STEP_MS) / 1000 + 20_000,
   );
-  await new Promise((r) => setTimeout(r, 1_500));
-  rawFirst = await k.api.history(tagId, `?from=1970-01-01T00:00:00.000Z&to=2999-01-01T00:00:00.000Z&limit=100000&order=asc`);
+  // Positive wait for the batched history flush: all N distinct values recorded.
+  rawFirst = await k.api.waitFor(
+    () => k.api.history(tagId, `?from=1970-01-01T00:00:00.000Z&to=2999-01-01T00:00:00.000Z&limit=100000&order=asc`),
+    (r) => r.samples.length === N,
+    20_000,
+    250,
+  );
   expect(rawFirst.samples.length).toBe(N);
 }, 90_000);
 

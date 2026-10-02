@@ -1,10 +1,12 @@
 // [test-support] Doc-derived stub — REWIRED AT MERGE.
 // Defensive adapters around the PRODUCT simulators @orch/sim-modbus (§5.2, §1:
 // "real Modbus server on TCP:502 / RTU") and @orch/sim-opcua (mock OPC UA server,
-// ticket #6). A7 (assumption): both export a startable factory; we probe the
-// conventional export names and shapes so a rename at merge only touches this file.
-// Fault injection per slave (A7): needed for the per-slave degradation isolation
-// test of §4.5; we probe common names (setSlaveFault / fault / setFault / stopSlave).
+// ticket #6). A7 (ADJUDICATED, adjudications.md): both are programmable (library +
+// CLI) and their configs may carry timed fault scripts faults:[{afterMs,target,action}]
+// — a product feature, not test scaffolding. We probe the conventional export names
+// and shapes so a rename at merge only touches this file. Per-slave fault injection
+// is part of that adjudicated surface; we probe common hook names
+// (setSlaveFault / fault / setFault / stopSlave).
 
 export interface SimModbusHandle {
   port: number;
