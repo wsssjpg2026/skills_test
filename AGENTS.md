@@ -3,6 +3,11 @@
 本项目是"工业设备控制与编排软件"（开源，Apache-2.0）。
 设计共识与调研产出在 `reports/` 与 `research_notes/` 下；规格与任务发布在 GitHub Issues。
 
+## 表述规范
+
+- 英文表述遵循 ASD-STE100 Simplified Technical English。
+- 表述清晰、明确、简洁；不用黑话——用 `GLOSSARY.md` 已定义的术语，新术语首次出现即给定义。
+
 ## Agent skills
 
 ### Issue tracker
