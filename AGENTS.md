@@ -5,8 +5,8 @@
 
 ## 表述规范
 
-- 英文表述遵循 ASD-STE100 Simplified Technical English。
-- 表述清晰、明确、简洁；不用黑话——用 `GLOSSARY.md` 已定义的术语，新术语首次出现即给定义。
+- 表述遵循 ASD-STE100 Simplified Technical English。
+- 表述清晰、明确、简洁；不用黑话
 
 ## Agent skills
 
