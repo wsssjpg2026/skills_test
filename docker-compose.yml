@@ -1,0 +1,41 @@
+# 可选的 prod-like 本地栈（架构文档 §6.2）。本地开发无需 docker：
+# `npm run build && npm start` 即以嵌入式存储启动内核。
+#
+# 默认：kernel（嵌入式存储）+ timescale（带健康检查）。
+# Postgres 模式：docker compose -f docker-compose.yml -f docker-compose.postgres.yml up
+#   （注：storage-timescale 随工单 #9 落地，届时 ready 才会显示存储正常）
+# MQTT 仿真：docker compose --profile mqtt up
+services:
+  kernel:
+    build: .
+    ports:
+      - '8080:8080'
+    environment:
+      ORCH_CONFIG: /app/orch.config.json # embedded storage by default
+    volumes:
+      - kernel-data:/app/data
+    depends_on:
+      timescale:
+        condition: service_healthy
+
+  timescale:
+    image: timescale/timescaledb:2.30.2-pg17
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: orch
+    ports:
+      - '5432:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d orch']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    profiles: ['mqtt']
+    ports:
+      - '1883:1883'
+
+volumes:
+  kernel-data:
