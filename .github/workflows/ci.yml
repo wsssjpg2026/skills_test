@@ -1,0 +1,79 @@
+# CI（架构文档 §6.4）：
+#   build-test — lint / typecheck / build / 嵌入式测试（npm ci 同时是原生模块
+#                prebuild 探针：better-sqlite3、serialport，Q10）
+#   db         — TimescaleDB service + vitest `db` project（骨架为空，#9 填充）
+#   license    — license-checker-rseidelsohn 按包检查（EPL-2.0 仅限 drivers/mqtt）
+#   contract   — driver-testkit SPI 合约套件（#3 落地前的占位 stub）
+name: ci
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  build-test:
+    name: build-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: npm ci (native prebuild probe: better-sqlite3, serialport)
+        run: npm ci
+      - name: native prebuild probe (arch §7 Q10)
+        run: node -e "require('better-sqlite3'); require('serialport'); console.log('native prebuilds OK')"
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm test
+
+  db:
+    name: db (timescale)
+    runs-on: ubuntu-latest
+    services:
+      timescale:
+        image: timescale/timescaledb:2.30.2-pg17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: orch_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      POSTGRES_TEST_DSN: postgres://postgres:postgres@localhost:5432/orch_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      # db vitest project — skeleton is empty (passWithNoTests); #9 fills it.
+      - run: npm run test:db
+
+  license:
+    name: license
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run license:check
+
+  contract:
+    name: contract (driver SPI suite)
+    runs-on: ubuntu-latest
+    steps:
+      - name: stub until ticket #3
+        run: |
+          echo "contract: orch-driver-testkit SPI suite lands with ticket #3 — stub job, exit 0"
