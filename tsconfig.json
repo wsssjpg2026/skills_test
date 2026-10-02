@@ -1,0 +1,23 @@
+{
+  "files": [],
+  "exclude": [".agents/**", "st-worktrees/**"],
+  "references": [
+    { "path": "packages/contracts" },
+    { "path": "packages/kernel" },
+    { "path": "packages/plugin-host" },
+    { "path": "packages/storage" },
+    { "path": "packages/storage-timescale" },
+    { "path": "packages/drivers/modbus" },
+    { "path": "packages/drivers/opcua" },
+    { "path": "packages/drivers/mqtt" },
+    { "path": "packages/drivers/http" },
+    { "path": "packages/drivers/frame-template" },
+    { "path": "packages/simulators/mock-driver" },
+    { "path": "packages/simulators/modbus-slave" },
+    { "path": "packages/simulators/opcua-server" },
+    { "path": "packages/simulators/mes" },
+    { "path": "packages/simulators/robot" },
+    { "path": "packages/testkit" },
+    { "path": "packages/testing" }
+  ]
+}

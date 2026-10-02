@@ -1,0 +1,35 @@
+{
+  "name": "orch-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "description": "工业设备控制与编排软件（工业 SCADA/编排内核 + 驱动插件 + Web 组态前端）",
+  "engines": {
+    "node": ">=24"
+  },
+  "workspaces": [
+    "packages/*",
+    "packages/drivers/*",
+    "packages/simulators/*"
+  ],
+  "scripts": {
+    "build": "tsc -b && npm run build --workspace @orch/web",
+    "typecheck": "tsc -b && npm run typecheck --workspace @orch/web",
+    "lint": "eslint .",
+    "test": "vitest run --project embedded",
+    "test:db": "vitest run --project db",
+    "dev": "tsx watch packages/kernel/src/bin.ts",
+    "start": "node packages/kernel/dist/bin.js",
+    "license:check": "bash scripts/license-check.sh"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "eslint": "^9.39.5",
+    "license-checker-rseidelsohn": "^5.0.1",
+    "tsx": "^4.23.15",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.71.0",
+    "vitest": "^5.0.3"
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "server": {
+    "host": "0.0.0.0",
+    "port": 8080
+  },
+  "storage": {
+    "mode": "postgres",
+    "dataDir": "./data",
+    "postgres": {
+      "dsn": "postgres://postgres:postgres@timescale:5432/orch",
+      "poolMax": 10
+    }
+  },
+  "plugins": {
+    "dir": "./plugins",
+    "restart": {
+      "initialMs": 1000,
+      "maxMs": 30000,
+      "maxRestarts": 5,
+      "windowMs": 600000
+    }
+  },
+  "auth": {
+    "bootstrapAdmin": true
+  }
+}

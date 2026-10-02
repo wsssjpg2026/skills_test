@@ -1,0 +1,22 @@
+{
+  "name": "@orch/mock-driver",
+  "version": "0.1.0",
+  "license": "Apache-2.0",
+  "type": "module",
+  "description": "Generic scriptable mock driver plugin (reference plugin for the SPI contract suite)",
+  "bin": {
+    "orch-mock-driver": "dist/main.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "dependencies": {
+    "@orch/contracts": "*"
+  }
+}

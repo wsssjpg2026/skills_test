@@ -1,0 +1,25 @@
+{
+  "name": "@orch/driver-testkit",
+  "version": "0.1.0",
+  "license": "Apache-2.0",
+  "type": "module",
+  "description": "Driver SPI contract suite CLI — third-party driver admission",
+  "bin": {
+    "orch-driver-testkit": "dist/cli.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@orch/contracts": "*",
+    "@orch/plugin-host": "*"
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "name": "@orch/testing",
+  "version": "0.1.0",
+  "license": "Apache-2.0",
+  "type": "module",
+  "description": "Test seam: bootKernel()/spawnKernel(), typed REST + WS clients, scenario loader, fault injection",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@orch/contracts": "*",
+    "@orch/kernel": "*",
+    "ws": "^8.22.0"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.5.12"
+  }
+}
