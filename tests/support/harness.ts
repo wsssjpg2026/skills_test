@@ -42,7 +42,9 @@ export async function spawnTestKernel(opts: {
 }
 
 async function finalizeKernel(boot: BootHandle): Promise<TestKernel> {
-  const creds = resolveAdminCredentials(boot.config, boot.stdout());
+  // A-ADMIN-CREDS (adjudicated): the boot harness seeded the admin password through
+  // env ORCH_ADMIN_PASSWORD; it reports the credentials back — no log parsing.
+  const creds = resolveAdminCredentials(boot);
   const anon = new RestClient(boot.baseUrl);
   const login = await anon.login(creds.username, creds.password);
   const api = anon.withToken(login.token);

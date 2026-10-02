@@ -6,14 +6,30 @@ pins observable behavior. IDs are referenced in code comments as `A-XXX`. Anythi
 implementation does differently will fail these tests at merge — that is deliberate:
 each item needs a coordinator decision (adopt the assumption, or change the test).
 
-## A-ADMIN-CREDS (blocking at merge)
-§2.1: "First boot seeds `admin` (random password printed to log once)". Tests need
-deterministic credentials. Resolution order in `boot.ts#resolveAdminCredentials`:
-1. `auth.bootstrapAdmin: {username, password}` object form in config (preferred).
-2. `ORCH_TEST_ADMIN_PASSWORD` env var.
-3. Parse kernel stdout with regex `/admin[^\n]{0,80}?password[^\w:]*["':\s]+([^\s"',}]+)/i`.
-The doc only specifies the boolean form. **Decision needed**: does the kernel accept an
-object form (or env override) for tests, and what exactly does the seed log line look like?
+## ADJUDICATED (coordinator rulings in /tmp/spec-impl-notes/adjudications.md — tests now pin these)
+
+## A-ADMIN-CREDS (ADJUDICATED)
+The test-auth seam is env `ORCH_ADMIN_PASSWORD`: `bootKernel`/`spawnKernel` expose a
+`bootstrapAdminPassword` option mapping to it; env wins over any config-file value;
+`auth.bootstrapAdmin: false` disables bootstrapping. Tests never parse the log for the
+random seed password (the boolean config form is the only one used).
+
+## A-WEBHOOK / A5 trigger binding (ADJUDICATED)
+The webhook token belongs to the FLOW (logical id), not the version: `GET /flows/{flowId}`
+returns `{id, name, webhookToken, currentVersion}`; the token is generated at flow
+creation and survives version bumps; `POST /flows/{flowId}/webhook-token` rotates it
+(old token becomes invalid). Flow specs may declare `triggers?: [{kind:'webhook'} |
+{kind:'mes', op}]` — a matching inbound MES event enqueues a task with `input = payload`.
+
+## A-TIMEOUT-NORETRY (ADJUDICATED)
+Default `retry.maxAttempts = 1`. A TIMEOUT (like a technical FAILURE) enters the retry
+path; with retries exhausted it becomes `SUSPENDED(retry_exhausted)` — never an immediate
+silent fail. `onError:'fail'` opts out (fail fast). engine-core and engine-timeout-retry
+pin both dispositions.
+
+## A-HISTORY-BUCKETS (ADJUDICATED)
+Downsample buckets are epoch-aligned (`bucketStart = floor(ts / intervalMs) * intervalMs`),
+`fn` computed over samples within each bucket, empty buckets omitted, `order=asc` default.
 
 ## A-PLUGIN-IDS
 `channel.driver` = plugin id (§2.1) but the ids of the shipped simulators are never
@@ -32,6 +48,9 @@ allocating a free port itself and pinning it in the written config (only require
 FlowDefinition has no trigger/webhook field. Tests accept the token from either
 `FlowVersion.webhookToken` (response field) or `spec.triggers.webhook.token`
 (also mirrored as an optional field in our type stub). Wrong token → 401.
+
+## A-WEBHOOK
+ADJUDICATED — see the ruled block at the top.
 
 ## A-WS-PATH
 WS endpoints are documented as `GET /ws/tags` (§2.2) — assumed NOT under `/api/v1`.
@@ -58,24 +77,20 @@ are observable (they are TaskEvents, yet alarms are not tasks). Not asserted any
 flagged for the coordinator.
 
 ## A-HISTORY-BUCKETS
-Downsample assertions assume buckets are epoch-aligned: bucketTs =
-floor(epochMs(ts)/intervalMs)*intervalMs, and each returned sample carries its bucket
-(or first-sample-in-bucket) ts such that a client can group raw samples by that rule.
-If the implementation aligns buckets to `from` instead, `history-api.test.ts` fails.
+ADJUDICATED — see the ruled block at the top.
 
 ## A-HISTORY-DISABLED-TAG
 Querying history for a tag with `historyEnabled:false` — unspecified. Tests assert the
 response is `503 HISTORY_UNAVAILABLE` or `{samples: []}` (both accepted; envelope shape
 still enforced on non-2xx).
 
-## A-ECHO-PROVIDER
-§10 #10 note: service-call ships with an in-kernel loopback provider `service:'echo'`.
-Tests assume the echo response payload equals the request payloadTemplate verbatim
-(after `{{ }}` interpolation), exposed as `nodes.<id>.response`.
+## A-ECHO-PROVIDER (ADJUDICATED)
+§10 #10 note + ruling: `service:'echo'` (test-only loopback) responds with the
+interpolated payload verbatim: `nodes.<id>.response = <payload>`.
 
-## A-VAR-SPACE
-`Condition.var` examples only show `nodes.<id>.response.x`. Tests additionally assume
-task `input` is addressable as `input.<field>` in both templates and var conditions.
+## A-VAR-SPACE (ADJUDICATED)
+Template variable space everywhere: `input.*`, `vars.*` (task vars),
+`nodes.<id>.response.*`, `nodes.<id>.result.*`.
 
 ## A-TEMPLATE-TYPE
 "whole-string single template preserves the referenced value's type" (§2.4). Tests
@@ -116,12 +131,7 @@ its in-memory state (readable back via /tags/values). The doc does not spell out
 mock-driver capabilities.
 
 ## A-TIMEOUT-NORETRY
-A per-node TIMEOUT with NO retry configured: the doc pins "retry exhausted ⇒ SUSPENDED
-(retry_exhausted)" but not whether "no retry" means "exhausted on first attempt" (suspend)
-or "no policy → onError/fail". engine-core's waitFor-timeout test accepts either terminal
-`suspended{retry_exhausted}` or `failed` and asserts the step outcome TIMEOUT either way;
-engine-timeout-retry pins the WITH-retry case firmly (suspend + exactly maxAttempts
-executions). Coordinator: pick the no-retry disposition.
+ADJUDICATED — see the ruled block at the top.
 
 ## A-BYTEORDER-MOCK
 `POST /devices/{id}/diagnostics/byteorder` (§2.1) tested against mock-driver:

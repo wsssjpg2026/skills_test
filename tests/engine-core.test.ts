@@ -89,13 +89,14 @@ describe('manual task creation & lifecycle (§2.1 POST /tasks, story 21)', () =>
 describe('webhook trigger (§2.1 POST /triggers/webhook/{token}, story 20)', () => {
   it('passes the request body through as task input; wrong token is UNAUTHORIZED', async () => {
     const only = seq('wh', { kind: 'log', message: 'hooked' });
-    const spec = flowDef('hooked', [only], []);
-    // A-WEBHOOK: token bound at flow level; surface = FlowVersion.webhookToken or spec.triggers.
-    const flow = await kernel.api.createFlow({ name: 'hooked', spec });
-    const token =
-      (flow as unknown as { webhookToken?: string }).webhookToken
-      ?? spec.triggers?.webhook?.token;
-    expect(token).toBeTruthy(); // if this fails, the binding surface assumption is wrong — adjudicate
+    const flow = await kernel.api.createFlow({ name: 'hooked', spec: flowDef('hooked', [only], []) });
+    // A-WEBHOOK (ADJUDICATED): token belongs to the Flow resource — GET /flows/{flowId}
+    // returns {id, name, webhookToken, currentVersion}.
+    const resource = await kernel.api.getFlow(flow.flowId);
+    const token = resource.webhookToken;
+    expect(token).toBeTruthy();
+    expect(resource.id).toBe(flow.flowId);
+    expect(resource.currentVersion).toBe(1);
 
     const task = await kernel.api.triggerWebhook(token!, { order: 'W-77', qty: 3 });
     expect(task.input).toEqual({ order: 'W-77', qty: 3 });
@@ -104,6 +105,24 @@ describe('webhook trigger (§2.1 POST /triggers/webhook/{token}, story 20)', () 
     await kernel.api.expectError(
       'POST', '/triggers/webhook/wrong-token-value', { order: 'x' }, 'UNAUTHORIZED', 401,
     );
+  });
+
+  it('rotating the webhook token invalidates the old one (A-WEBHOOK: POST /flows/{id}/webhook-token)', async () => {
+    const only = seq('wh2', { kind: 'log', message: 'rotated' });
+    const flow = await kernel.api.createFlow({ name: 'rotated', spec: flowDef('rotated', [only], []) });
+    const before = await kernel.api.getFlow(flow.flowId);
+
+    const after = await kernel.api.rotateWebhookToken(flow.flowId);
+    expect(after.webhookToken).toBeTruthy();
+    expect(after.webhookToken).not.toBe(before.webhookToken); // rotation minted a new token
+
+    // The OLD token is dead; the NEW one enqueues a task.
+    await kernel.api.expectError(
+      'POST', `/triggers/webhook/${before.webhookToken}`, { order: 'stale' }, 'UNAUTHORIZED', 401,
+    );
+    const task = await kernel.api.triggerWebhook(after.webhookToken, { order: 'fresh' });
+    expect(task.input).toEqual({ order: 'fresh' });
+    await waitForTaskStatus(kernel.api, task.id, ['completed'], 10_000);
   });
 });
 
@@ -143,8 +162,11 @@ describe('device-command node (§2.4: writes + optional waitFor condition)', () 
     expect(events.some((e) => e.type === 'step.completed' && (e.payload as { nodeId: string }).nodeId === 'w')).toBe(true);
   });
 
-  it('waitFor that never becomes true times out with outcome TIMEOUT (technical path)', async () => {
+  it('waitFor that never becomes true times out → retry path → SUSPENDED(retry_exhausted)', async () => {
     // 'gate' is set false once and never written again → the condition can never hold.
+    // A-TIMEOUT-NORETRY (ADJUDICATED): default retry.maxAttempts = 1; a TIMEOUT enters
+    // the retry path and exhausted retries escalate to SUSPENDED(retry_exhausted) —
+    // never an immediate silent fail (onError:'fail' is the only opt-out).
     const write = deviceCmd('w', [
       { tag: mock.tagPath('cmd_out'), valueTemplate: 6 },
     ], tagIs(mock.tagPath('gate'), 'eq', true), 1_500);
@@ -152,14 +174,14 @@ describe('device-command node (§2.4: writes + optional waitFor condition)', () 
       name: 'dev_cmd_timeout', spec: flowDef('dev_cmd_timeout', [write], []),
     });
     const task = await kernel.api.createTask({ flowId: flow.flowId });
-    const done = await waitForTaskStatus(kernel.api, task.id, ['suspended', 'failed'], 15_000);
-    // §4.2: TIMEOUT follows the technical-Failure path; exhausted retry escalates to
-    // SUSPENDED(retry_exhausted), never silent fail. With no retry configured the
-    // disposition is suspended-with-reason or failed (A-TIMEOUT-NORETRY) — pin the reason.
-    if (done.status === 'suspended') expect(done.suspendReason).toBe('retry_exhausted');
+    const done = await waitForTaskStatus(kernel.api, task.id, ['suspended'], 15_000);
+    expect(done.suspendReason).toBe('retry_exhausted');
     const events = await kernel.api.allEvents(task.id);
     const failed = events.find((e) => e.type === 'step.failed');
     expect(failed?.payload).toMatchObject({ nodeId: 'w', outcome: 'TIMEOUT' });
+    // Default retry.maxAttempts = 1 → exactly ONE execution of the node.
+    const starts = events.filter((e) => e.type === 'step.started' && (e.payload as { nodeId: string }).nodeId === 'w');
+    expect(starts.length).toBe(1);
   });
 });
 

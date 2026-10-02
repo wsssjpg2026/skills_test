@@ -182,8 +182,6 @@ export interface ScenarioSeedChannel {
 export interface ScenarioSeedFlow {
   name: string;
   spec: FlowDefinition;
-  /** ASSUMPTION: webhook binding surface — see ASSUMPTIONS.md A-WEBHOOK. */
-  triggers?: { webhook?: { token: string } };
 }
 
 export interface ScenarioFault {
@@ -252,10 +250,10 @@ export async function installScenario(api: RestClient, scenario: Scenario): Prom
   for (const f of scenario.seed.flows) {
     const created = await api.createFlow({ name: f.name, spec: f.spec });
     out.flows[f.name] = created;
-    const token = (created as unknown as { webhookToken?: string }).webhookToken
-      ?? f.spec.triggers?.webhook?.token
-      ?? f.triggers?.webhook?.token;
-    if (token) out.webhookTokens[f.name] = token;
+    // A-WEBHOOK (ADJUDICATED): the token lives on the Flow resource and survives
+    // version bumps — read it from GET /flows/{flowId}.
+    const resource = await api.getFlow(created.flowId);
+    if (resource.webhookToken) out.webhookTokens[f.name] = resource.webhookToken;
   }
   return out;
 }

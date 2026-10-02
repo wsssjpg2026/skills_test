@@ -4,10 +4,23 @@
 // collapse to a re-export of @orch/testing's bootKernel/spawnKernel (same signatures).
 
 import { spawn, type ChildProcess } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { KernelConfig, HealthStatus } from './types.js';
 import { defaultPluginsDir, freePort, repoRoot, tempDir, waitUntil } from './util.js';
+
+/**
+ * A-ADMIN-CREDS (ADJUDICATED, adjudications.md): the deterministic test-auth seam is
+ * env `ORCH_ADMIN_PASSWORD` — bootKernel/spawnKernel expose a `bootstrapAdminPassword`
+ * option that maps to it; env wins over any config-file value. The random-password-
+ * printed-to-log path is never parsed by tests.
+ */
+export const ADMIN_PASSWORD_ENV = 'ORCH_ADMIN_PASSWORD';
+
+function bootstrapPassword(explicit?: string): string {
+  return explicit ?? randomBytes(24).toString('base64url');
+}
 
 export type DeepPartial<T> = {
   [K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K];
@@ -43,6 +56,8 @@ export interface BootHandle {
   config: KernelConfig;
   port: number;
   baseUrl: string;
+  /** Credentials the harness seeded via the A-ADMIN-CREDS env seam. */
+  admin: AdminCredentials;
   /** Everything the child process wrote to stdout (in-process: empty string). */
   stdout: () => string;
   stop: () => Promise<void>;
@@ -54,9 +69,15 @@ export interface BootHandle {
  * §5.1 bootKernel: in-process boot via `createKernel(config)` from @orch/kernel,
  * real listening socket (fastify reached only through real HTTP/WS).
  * Doc contract (§1 kernel/src/boot.ts): createKernel(config) -> { start, stop, fastify, port, ... }.
+ * `bootstrapAdminPassword` maps to env ORCH_ADMIN_PASSWORD around the boot call
+ * (A-ADMIN-CREDS adjudicated seam; env wins over config).
  */
-export async function bootKernel(opts: { config?: DeepPartial<KernelConfig> } = {}): Promise<BootHandle> {
+export async function bootKernel(opts: {
+  config?: DeepPartial<KernelConfig>;
+  bootstrapAdminPassword?: string;
+} = {}): Promise<BootHandle> {
   const config = await defaultTestConfig(opts.config);
+  const password = bootstrapPassword(opts.bootstrapAdminPassword);
   const mod = (await dynamicImportKernel()) as {
     createKernel(cfg: KernelConfig): Promise<{
       start(): Promise<void>;
@@ -64,14 +85,23 @@ export async function bootKernel(opts: { config?: DeepPartial<KernelConfig> } = 
       port: number;
     }>;
   };
-  const kernel = await mod.createKernel(config);
-  await kernel.start();
+  const prevEnv = process.env[ADMIN_PASSWORD_ENV];
+  process.env[ADMIN_PASSWORD_ENV] = password;
+  let kernel: Awaited<ReturnType<typeof mod.createKernel>>;
+  try {
+    kernel = await mod.createKernel(config);
+    await kernel.start();
+  } finally {
+    if (prevEnv === undefined) delete process.env[ADMIN_PASSWORD_ENV];
+    else process.env[ADMIN_PASSWORD_ENV] = prevEnv;
+  }
   const port = kernel.port; // §5.1: real socket on ephemeral port; handle exposes actual port
   return {
     mode: 'in-process',
     config,
     port,
     baseUrl: `http://${config.server.host}:${port}`,
+    admin: { username: 'admin', password },
     stdout: () => '',
     stop: () => kernel.stop(),
   };
@@ -113,20 +143,27 @@ export async function spawnKernel(opts: {
   configDir?: string;
   config?: DeepPartial<KernelConfig>;
   env?: Record<string, string>;
+  bootstrapAdminPassword?: string;
 } = {}): Promise<SpawnHandle> {
   const configDir = opts.configDir ?? (await tempDir('orch-cfg-'));
   const dataDir = opts.config?.storage?.dataDir ?? path.join(configDir, 'data');
   const base = await defaultTestConfig({ ...opts.config, storage: { ...opts.config?.storage, dataDir } });
   const configPath = path.join(configDir, 'orch.config.json');
   await writeFile(configPath, JSON.stringify(base, null, 2), 'utf8');
+  const password = bootstrapPassword(opts.bootstrapAdminPassword);
 
   const startOnce = async (): Promise<{ proc: ChildProcess; stdout: string[] }> => {
     const bin = path.join(repoRoot(), 'node_modules', '.bin', 'orch-kernel');
     const stdout: string[] = [];
-    const proc = spawn(bin, [], {
-      env: { ...process.env, ORCH_CONFIG: configPath, ...(opts.env ?? {}) },
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
+    // A-ADMIN-CREDS (adjudicated): seed the bootstrap admin password via env; an
+    // explicit opts.env entry wins (env overrides are the caller's business).
+    const childEnv = {
+      ...process.env,
+      ORCH_CONFIG: configPath,
+      [ADMIN_PASSWORD_ENV]: password,
+      ...(opts.env ?? {}),
+    };
+    const proc = spawn(bin, [], { env: childEnv, stdio: ['ignore', 'pipe', 'pipe'] });
     proc.stdout?.on('data', (d) => stdout.push(String(d)));
     proc.stderr?.on('data', (d) => stdout.push(String(d)));
     return { proc, stdout };
@@ -139,6 +176,7 @@ export async function spawnKernel(opts: {
     configDir,
     port: base.server.port,
     baseUrl: `http://${base.server.host}:${base.server.port}`,
+    admin: { username: 'admin', password },
     proc,
     stdout: () => stdout.join(''),
     kill: async (signal = 'SIGKILL') => {
@@ -154,7 +192,7 @@ export async function spawnKernel(opts: {
         if (proc.exitCode != null) return resolve();
         proc.once('exit', () => resolve());
         setTimeout(() => {
-          if (proc.exitCode == null) proc.kill('SIGKILL');
+          if (proc.exitCode != null) proc.kill('SIGKILL');
           resolve();
         }, 5_000).unref();
       });
@@ -166,11 +204,13 @@ export async function spawnKernel(opts: {
         proc.once('exit', () => resolve());
       });
       // Same configDir (data survives) AND same port — the outside world's REST/WS
-      // clients keep working across the simulated power loss.
+      // clients keep working across the simulated power loss. Same password so the
+      // harness's stored credentials stay valid across the restart.
       return spawnKernel({
         configDir,
         config: { ...opts.config, server: { ...opts.config?.server, port: base.server.port } },
         env: opts.env,
+        bootstrapAdminPassword: password,
       });
     },
   };
@@ -201,26 +241,10 @@ export interface AdminCredentials {
 }
 
 /**
- * §2.1: "First boot seeds admin (random password printed to log once)".
- * Deterministic credential resolution, least-assumption order:
- *   1. explicit object form in config auth.bootstrapAdmin {username,password} (ASSUMPTION: supported)
- *   2. ORCH_TEST_ADMIN_PASSWORD env
- *   3. parse the seeded password out of kernel stdout (regex below — see ASSUMPTIONS.md)
+ * §2.1 first boot seeds `admin`; A-ADMIN-CREDS (ADJUDICATED) provides the deterministic
+ * seam: the harness sets ORCH_ADMIN_PASSWORD before boot (via the bootstrapAdminPassword
+ * option) and the boot handle reports the credentials it seeded. Nothing parses logs.
  */
-export function resolveAdminCredentials(
-  config: KernelConfig,
-  stdout: string,
-): AdminCredentials {
-  const ba = config.auth.bootstrapAdmin;
-  if (typeof ba === 'object' && ba != null) return { username: ba.username, password: ba.password };
-  if (process.env.ORCH_TEST_ADMIN_PASSWORD) {
-    return { username: 'admin', password: process.env.ORCH_TEST_ADMIN_PASSWORD };
-  }
-  const m = stdout.match(/admin[^\n]{0,80}?password[^\w:]*["':\s]+([^\s"',}]+)/i);
-  if (m) return { username: 'admin', password: m[1] };
-  throw new Error(
-    'cannot resolve bootstrap admin credentials: no explicit auth.bootstrapAdmin object, ' +
-    'no ORCH_TEST_ADMIN_PASSWORD env, and no parsable seed line in kernel stdout ' +
-    '(see tests/support/ASSUMPTIONS.md — needs coordinator adjudication)',
-  );
+export function resolveAdminCredentials(boot: BootHandle): AdminCredentials {
+  return boot.admin;
 }

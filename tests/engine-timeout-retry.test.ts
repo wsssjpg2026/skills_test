@@ -52,6 +52,32 @@ describe('per-node timeout (§2.4 timeoutMs common field)', () => {
     expect(completed?.payload).toMatchObject({ nodeId: 'crawl', outcome: 'TIMEOUT' });
     expect(events.some((e) => e.type === 'step.started' && (e.payload as { nodeId: string }).nodeId === 'on_timeout')).toBe(true);
   });
+
+  it("onError:'fail' opts out of the suspend: an unbranched timeout fails fast (A-TIMEOUT-NORETRY)", async () => {
+    // A-TIMEOUT-NORETRY (ADJUDICATED): default retry.maxAttempts = 1 → a TIMEOUT enters
+    // the retry path → SUSPENDED(retry_exhausted); onError:'fail' fails fast instead.
+    await installRobotChannel(kernel.api, {
+      channel: 'failbot', device: 'fail_arm',
+      config: robotConfig({ stall: { durationMs: 10_000 } }),
+    });
+    const acq = acquire('acq', 'failbot_r');
+    const cmd = robot('stuck', 'failbot_r', 'stall', {}, { timeoutMs: 700, onError: 'fail' });
+    const flow = await kernel.api.createFlow({
+      name: 'timeout_failfast',
+      spec: flowDef('timeout_failfast', [acq, cmd], chain(acq, cmd)),
+    });
+    const task = await kernel.api.createTask({ flowId: flow.flowId });
+    const done = await waitForTaskStatus(kernel.api, task.id, ['failed'], 20_000);
+    expect(done.status).toBe('failed');
+    expect(done.suspendReason).toBeUndefined(); // NOT suspended — fail-fast opted out
+    const events = await kernel.api.allEvents(task.id);
+    const failed = events.find((e) => e.type === 'step.failed' && (e.payload as { nodeId: string }).nodeId === 'stuck');
+    expect(failed?.payload).toMatchObject({ nodeId: 'stuck', outcome: 'TIMEOUT' });
+    // Exactly one execution: fail-fast does not loop.
+    const starts = events.filter((e) => e.type === 'step.started' && (e.payload as { nodeId: string }).nodeId === 'stuck');
+    expect(starts.length).toBe(1);
+    expect(events.some((e) => e.type === 'task.suspended')).toBe(false);
+  });
 });
 
 describe('retry policy (§2.4 retry {maxAttempts, backoffMs})', () => {

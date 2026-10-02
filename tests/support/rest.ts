@@ -9,6 +9,14 @@ import type {
   Task, TaskCommand, TaskEvent, User,
 } from './types.js';
 
+/** A-WEBHOOK (ADJUDICATED): GET /flows/{flowId} returns the flow-level resource. */
+export interface FlowResource {
+  id: string;
+  name: string;
+  webhookToken: string;
+  currentVersion: number;
+}
+
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -166,7 +174,12 @@ export class RestClient {
     return this.request('POST', '/flows', body);
   }
   listFlows(): Promise<unknown[]> { return this.request<Page<unknown>>('GET', '/flows').then((p) => p.items); }
-  getFlow(flowId: string): Promise<unknown> { return this.request('GET', `/flows/${flowId}`); }
+  /** A-WEBHOOK (ADJUDICATED): the webhook token belongs to the Flow (logical id),
+   *  survives version bumps, and is exposed here; rotation invalidates the old token. */
+  getFlow(flowId: string): Promise<FlowResource> { return this.request('GET', `/flows/${flowId}`); }
+  rotateWebhookToken(flowId: string): Promise<FlowResource> {
+    return this.request('POST', `/flows/${flowId}/webhook-token`);
+  }
   publishVersion(flowId: string, body: { spec: FlowDefinition; note?: string }): Promise<FlowVersion> {
     return this.request('POST', `/flows/${flowId}/versions`, body);
   }

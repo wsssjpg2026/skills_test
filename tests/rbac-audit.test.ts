@@ -12,6 +12,8 @@ import type { Permission, Role } from './support/types.js';
 
 let kernel: TestKernel;
 let roles: Record<string, Role> = {};
+// Deterministic unique usernames: sequential counter, no Math.random.
+let userCounter = 0;
 
 const MATRIX: Array<{ grant: Permission[]; allowed: Permission[] }> = [
   { grant: ['config:write'], allowed: ['config:write'] },
@@ -45,7 +47,8 @@ afterAll(async () => {
 
 async function userWith(permissions: Permission[]) {
   const key = permissions.join('+') || 'none';
-  const username = `u_${key.replace(/[^a-z0-9]/gi, '_')}_${Math.random().toString(36).slice(2, 7)}`;
+  userCounter += 1;
+  const username = `u_${key.replace(/[^a-z0-9]/gi, '_')}_${userCounter}`;
   await kernel.api.createUser({ username, password: 'pw-12345678', roles: [roles[key].id] }); // A-USER-ROLES-REF
   const login = await kernel.anon.login(username, 'pw-12345678');
   return kernel.anon.withToken(login.token);

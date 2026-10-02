@@ -139,6 +139,11 @@ export interface ByteorderDiagnosticResult {
   diagnosis: string | object;
 }
 
+/** A5 (ADJUDICATED, adjudications.md): flow-level trigger bindings. A webhook binding
+ *  declares triggerability only — the token itself lives on the Flow resource
+ *  (`GET /flows/{flowId}` → {id, name, webhookToken, currentVersion}). */
+export type FlowTrigger = { kind: 'webhook' } | { kind: 'mes'; op: string };
+
 export interface FlowDefinition {
   specVersion: '1.0';
   id?: string; // logical flow id — server-assigned on first deploy (ASSUMPTION: client omits)
@@ -146,10 +151,9 @@ export interface FlowDefinition {
   version?: number; // server-assigned, monotonic per flow
   nodes: FlowNode[];
   edges: FlowEdge[];
-  /** ASSUMPTION (A-WEBHOOK): the doc says "token bound at flow level" (§2.1) but does not
-   *  define the binding surface; tests accept token from FlowVersion.webhookToken OR
-   *  spec.triggers.webhook.token — whichever the implementation provides. */
-  triggers?: { webhook?: { token: string } };
+  /** A5 (adjudicated): inbound MES `type:"event"` with matching op enqueues a task with
+   *  input = payload; webhook entries are handled via the Flow resource's token. */
+  triggers?: FlowTrigger[];
 }
 
 export interface FlowEdge {
@@ -442,7 +446,10 @@ export interface KernelConfig {
     mes?: { url: string; requestTimeoutMs: number; maxRetries: number; reconnect?: { initialMs: number; maxMs: number } };
     mqttBridge?: { url: string; qos: number };
   };
-  auth: { bootstrapAdmin: boolean | { username: string; password: string } }; // ASSUMPTION: object form for deterministic tests
+  // A-ADMIN-CREDS (ADJUDICATED): boolean only — the test password comes from env
+  // ORCH_ADMIN_PASSWORD (set via bootKernel/spawnKernel `bootstrapAdminPassword`), and
+  // env wins over any config-file value. `false` disables bootstrapping entirely.
+  auth: { bootstrapAdmin: boolean };
 }
 
 export interface PluginManifest {
