@@ -1,5 +1,6 @@
 {
   "files": [],
+  "exclude": [".agents/**", "st-worktrees/**"],
   "references": [
     { "path": "packages/contracts" },
     { "path": "packages/kernel" },

@@ -9,6 +9,8 @@ export default tseslint.config(
       '**/dist/',
       '**/coverage/',
       'data/',
+      '.agents/',
+      'st-worktrees/',
     ],
   },
   ...tseslint.configs.recommended,
