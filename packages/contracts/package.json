@@ -10,6 +10,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./spi": {
+      "types": "./dist/spi.d.ts",
+      "import": "./dist/spi.js"
     }
   },
   "files": [

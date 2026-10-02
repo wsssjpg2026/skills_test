@@ -5,9 +5,11 @@
 （任务队列、WAL 断点恢复、ISA-88 暂停/保持/停止/中止、Saga 补偿）、ISA-18.2
 报警、RBAC 与审计、北向 MES / MQTT 集成，以及 Vite + React 的 Web 组态前端。
 
-当前状态：**walking skeleton（工单 #2）** —— monorepo 骨架、CI 流水线、内核
-健康检查与状态页就绪；驱动插件宿主、标签核心、编排引擎等随后续工单（#3 起）
-逐步落地。规格与任务见 GitHub Issues（#1 为总规格）。
+当前状态：**工单 #2 + #3 已落地** —— monorepo 骨架、CI 流水线、内核健康检查与
+状态页（#2）；驱动插件宿主（ndjson JSON-RPC 2.0 over stdio、监管重启与全量
+重同步）、`@orch/mock-driver` 参考插件、SPI 合约测试套件 CLI 与
+`@orch/testing` 测试缝（#3）。标签核心、REST/WS 资源与编排引擎随后续工单
+（#4 起）落地。规格与任务见 GitHub Issues（#1 为总规格）。
 
 ## 环境要求
 
@@ -40,8 +42,18 @@ open http://localhost:8080/
   "version": "0.1.0",
   "uptimeSec": 3,
   "storage": { "mode": "embedded", "ok": true },
-  "plugins": []
+  "plugins": [{ "id": "mock-driver", "state": "running" }]
 }
+```
+
+`plugins` 来自启动时对 `plugins.dir`（默认 `./plugins`）的清单扫描
+（`plugins/<id>/plugin.json`）；强杀插件子进程后宿主按退避自动重启并重放
+`initialize` + `channel.start`（全量重同步），内核进程不受影响。
+
+对任意可拉起的驱动插件跑 SPI 合约测试（第三方准入同款，退出码即结论）：
+
+```bash
+node packages/testkit/dist/cli.js --plugin "node packages/simulators/mock-driver/dist/main.js"
 ```
 
 配置文件路径可用 `ORCH_CONFIG` 覆盖（默认 `./orch.config.json`）；日志级别用
@@ -109,7 +121,8 @@ docker-compose.yml      可选 prod-like 本地栈
 - **license**：license-checker-rseidelsohn 按包检查 —— MIT/ISC/BSD/Apache-2.0/
   MPL-2.0 全局允许；**EPL-2.0 仅允许出现在 `packages/drivers/mqtt`**
   （sparkplug-payload）；GPL/AGPL/UNKNOWN 一律红。内核依赖树内不得含 EPL。
-- **contract**：驱动 SPI 合约套件（#3 前为占位）。
+- **contract**：驱动 SPI 合约套件 —— 对 `@orch/mock-driver` 必须保持全绿（参考
+  插件与第三方准入基线，架构文档 §2.3.6）。
 
 ## 许可证
 

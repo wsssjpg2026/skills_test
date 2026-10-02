@@ -15,6 +15,9 @@
   "files": [
     "dist"
   ],
+  "dependencies": {
+    "@orch/contracts": "*"
+  },
   "optionalDependencies": {
     "better-sqlite3": "^13.0.3"
   }

@@ -18,3 +18,10 @@ Python 插件：`{"language": "python", "command": "python3",
 "args": ["-m", "orch_plugin_sdk.cli", "sidecar.py"]}`。
 
 清单是运行时配置，包本体位于 `packages/drivers/*`（npm workspaces）。
+
+当前已随仓库发布：
+
+- `plugins/mock-driver/plugin.json` —— `@orch/mock-driver`（工单 #3），可脚本化的
+  参考驱动插件；channel `config` 按 §5.2 写脚本（`{script:[{afterMs,set|quality|…}]}`），
+  能力位为 `write` / `read_on_demand` / `validate`（无 `subscribe`，宿主以轮询 `read`
+  模拟订阅）。
