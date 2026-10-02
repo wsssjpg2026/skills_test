@@ -1,0 +1,105 @@
+{
+  "channels": [
+    {
+      "name": "factory",
+      "driver": "mock-driver",
+      "enabled": true,
+      "config": {
+        "script": [
+          { "afterMs": 0, "set": { "conveyor_speed": 1.5, "part_present": true, "station_code": "PICK_ST" } }
+        ]
+      },
+      "devices": [
+        {
+          "name": "station",
+          "address": "mock:station",
+          "tags": [
+            { "name": "conveyor_speed", "dataType": "float64", "access": "read" },
+            { "name": "part_present", "dataType": "bool", "access": "read" },
+            { "name": "station_code", "dataType": "string", "access": "read" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "robot_cell",
+      "driver": "sim-robot",
+      "enabled": true,
+      "config": {
+        "actions": {
+          "navigate_to_goal": { "durationMs": 700 },
+          "scan_barcode": { "durationMs": 400, "result": { "barcode": "BC-0042" } },
+          "grasp": { "durationMs": 500 },
+          "place": { "durationMs": 500 }
+        },
+        "commandStatus": "queryable"
+      },
+      "devices": [
+        {
+          "name": "arm",
+          "address": "sim:arm",
+          "tags": [
+            { "name": "battery", "dataType": "float64", "access": "read" }
+          ]
+        }
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "name": "pick_and_place",
+      "triggers": { "webhook": { "token": "pp-reg-7f3k-token" } },
+      "spec": {
+        "specVersion": "1.0",
+        "name": "pick_and_place",
+        "nodes": [
+          { "type": "resource-acquire", "id": "acq", "name": "占用机器人", "resourceKey": "robot_1" },
+          { "type": "robot-command", "id": "nav_pick", "name": "导航到取料站", "resourceKey": "robot_1",
+            "command": "navigate_to_goal", "paramsTemplate": { "goal": "PICK_ST" }, "timeoutMs": 15000 },
+          { "type": "robot-command", "id": "scan", "name": "机械臂扫码", "resourceKey": "robot_1",
+            "command": "scan_barcode", "paramsTemplate": {}, "timeoutMs": 10000 },
+          { "type": "service-call", "id": "report_scan", "name": "上报 MES 扫码结果", "service": "mes",
+            "operation": "reportScan", "payloadTemplate": { "barcode": "{{ nodes.scan.response.barcode }}" },
+            "timeoutMs": 5000, "retry": { "maxAttempts": 2, "backoffMs": 200 } },
+          { "type": "service-call", "id": "dest", "name": "MES 返回目标站点", "service": "mes",
+            "operation": "getDestination", "payloadTemplate": { "barcode": "{{ nodes.scan.response.barcode }}" },
+            "timeoutMs": 2000, "retry": { "maxAttempts": 1, "backoffMs": 200 } },
+          { "type": "condition-branch", "id": "route", "name": "按目标站点路由",
+            "branches": [ { "when": { "var": "nodes.dest.response.station", "op": "eq", "value": "ST-2" }, "port": "st2" } ],
+            "elsePort": "manual" },
+          { "type": "human-intervention", "id": "manual_station", "name": "异常站点人工确认",
+            "prompt": "MES 未返回 ST-2，请人工确认目标站点", "options": ["retry", "abort"] },
+          { "type": "robot-command", "id": "grasp", "name": "抓取", "resourceKey": "robot_1",
+            "command": "grasp", "paramsTemplate": {}, "timeoutMs": 10000 },
+          { "type": "human-intervention", "id": "qa_gate", "name": "抓取质量确认",
+            "prompt": "确认抓取质量后继续", "options": ["ok", "redo"] },
+          { "type": "robot-command", "id": "nav_target", "name": "导航到目标站", "resourceKey": "robot_1",
+            "command": "navigate_to_goal", "paramsTemplate": { "goal": "{{ nodes.dest.response.station }}" },
+            "timeoutMs": 15000 },
+          { "type": "robot-command", "id": "place", "name": "放置", "resourceKey": "robot_1",
+            "command": "place", "paramsTemplate": {}, "timeoutMs": 10000 },
+          { "type": "service-call", "id": "report_done", "name": "上报 MES 完成", "service": "mes",
+            "operation": "reportPlace",
+            "payloadTemplate": { "station": "{{ nodes.dest.response.station }}", "cycleDone": true },
+            "timeoutMs": 5000 },
+          { "type": "resource-release", "id": "rel", "name": "释放机器人", "resourceKey": "robot_1" }
+        ],
+        "edges": [
+          { "from": "acq", "port": "then", "to": "nav_pick" },
+          { "from": "nav_pick", "port": "completed", "to": "scan" },
+          { "from": "scan", "port": "completed", "to": "report_scan" },
+          { "from": "report_scan", "port": "then", "to": "dest" },
+          { "from": "dest", "port": "then", "to": "route" },
+          { "from": "route", "port": "st2", "to": "grasp" },
+          { "from": "route", "port": "manual", "to": "manual_station" },
+          { "from": "manual_station", "port": "then", "to": "grasp" },
+          { "from": "grasp", "port": "completed", "to": "qa_gate" },
+          { "from": "qa_gate", "port": "then", "to": "nav_target" },
+          { "from": "nav_target", "port": "completed", "to": "place" },
+          { "from": "place", "port": "completed", "to": "report_done" },
+          { "from": "report_done", "port": "then", "to": "rel" }
+        ]
+      }
+    }
+  ]
+}

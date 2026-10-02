@@ -1,0 +1,16 @@
+{
+  "name": "orch-test-suite",
+  "private": true,
+  "description": "doc-derived test stub root — rewired to @orch/* workspaces at merge (see tests/support/* headers)",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.6.0",
+    "vitest": "^3.2.0"
+  }
+}

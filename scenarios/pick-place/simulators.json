@@ -1,0 +1,9 @@
+{
+  "mes": {
+    "responses": {
+      "reportScan": { "payload": { "ok": true } },
+      "getDestination": { "payload": { "station": "ST-2" } },
+      "reportPlace": { "payload": { "ok": true } }
+    }
+  }
+}

@@ -1,0 +1,12 @@
+[
+  {
+    "name": "mes-drop-first-getDestination",
+    "type": "sim_error_injection",
+    "target": "mes.getDestination",
+    "at": "task:pick_and_place:started",
+    "responses": [
+      { "delayMs": 60000, "drop": true },
+      { "payload": { "station": "ST-2" } }
+    ]
+  }
+]

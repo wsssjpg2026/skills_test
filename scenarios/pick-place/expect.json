@@ -1,0 +1,28 @@
+{
+  "taskEventSequence": [
+    { "type": "task.enqueued" },
+    { "type": "task.started" },
+    { "type": "resource.acquired", "payloadSub": { "key": "robot_1" } },
+    { "type": "command.issued", "payloadSub": { "nodeId": "nav_pick" } },
+    { "type": "step.completed", "payloadSub": { "nodeId": "nav_pick", "outcome": "SUCCESS" } },
+    { "type": "command.issued", "payloadSub": { "nodeId": "scan" } },
+    { "type": "command.completed" },
+    { "type": "service.called", "payloadSub": { "nodeId": "report_scan" } },
+    { "type": "service.responded" },
+    { "type": "service.called", "payloadSub": { "nodeId": "dest" }, "optional": true },
+    { "type": "step.failed", "payloadSub": { "nodeId": "dest", "outcome": "TIMEOUT" }, "optional": true },
+    { "type": "task.suspended", "payloadSub": { "reason": "retry_exhausted" } },
+    { "type": "task.resumed" },
+    { "type": "service.responded" },
+    { "type": "step.started", "payloadSub": { "nodeId": "grasp" } },
+    { "type": "step.completed", "payloadSub": { "nodeId": "grasp", "outcome": "SUCCESS" } },
+    { "type": "task.suspended", "payloadSub": { "reason": "human_intervention" } },
+    { "type": "task.resumed" },
+    { "type": "step.completed", "payloadSub": { "nodeId": "nav_target", "outcome": "SUCCESS" } },
+    { "type": "step.completed", "payloadSub": { "nodeId": "place", "outcome": "SUCCESS" } },
+    { "type": "service.called", "payloadSub": { "nodeId": "report_done" } },
+    { "type": "service.responded" },
+    { "type": "resource.released", "payloadSub": { "key": "robot_1" } },
+    { "type": "task.completed" }
+  ]
+}
