@@ -1,0 +1,30 @@
+{
+  "name": "@orch/kernel",
+  "version": "0.1.0",
+  "license": "Apache-2.0",
+  "type": "module",
+  "description": "Composition root + core services: REST API, WS hubs, tag core, orchestration engine, northbound",
+  "bin": {
+    "orch-kernel": "dist/bin.js"
+  },
+  "main": "./dist/boot.js",
+  "types": "./dist/boot.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/boot.d.ts",
+      "import": "./dist/boot.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@fastify/static": "^10.1.5",
+    "@orch/contracts": "*",
+    "@orch/plugin-host": "*",
+    "@orch/storage": "*",
+    "fastify": "^5.12.5",
+    "pino": "^10.3.1",
+    "ws": "^8.22.0"
+  }
+}
