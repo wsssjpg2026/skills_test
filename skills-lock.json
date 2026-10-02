@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "skills": {
+    "deep-research-from-claude": {
+      "source": "wsssjpg2026/skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/deep-research-from-claude/SKILL.md",
+      "computedHash": "e1198be4330a704d498ba082411965d26ed65280ca34e7e6efd61cb5b9ba8993"
+    },
+    "implement-spec-v2": {
+      "source": "Y1MYang/skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/implement-spec-v2/SKILL.md",
+      "computedHash": "2edb39501d29c477706d1aa65eb4acc330cfef8f35a5e90b7f339e3944176b44"
+    }
+  }
+}
