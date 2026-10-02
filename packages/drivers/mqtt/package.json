@@ -1,0 +1,16 @@
+{
+  "name": "@orch/driver-mqtt",
+  "version": "0.1.0",
+  "license": "Apache-2.0",
+  "type": "module",
+  "description": "MQTT (incl. Sparkplug B decode) driver plugin — the ONLY package where EPL-2.0 deps are allowed",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist"]
+}

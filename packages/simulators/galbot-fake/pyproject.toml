@@ -1,0 +1,10 @@
+[project]
+name = "orch-sim-galbot"
+version = "0.1.0"
+description = "Replay-mode fake of the Galbot S1 sidecar contract (fed by recorded JSONL)"
+requires-python = ">=3.9"
+license = "Apache-2.0"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
