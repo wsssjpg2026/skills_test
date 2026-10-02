@@ -1,0 +1,6 @@
+{
+  "id": "mock-driver",
+  "language": "node",
+  "command": "node",
+  "args": ["../packages/simulators/mock-driver/dist/main.js"]
+}

@@ -14,5 +14,13 @@
   },
   "files": [
     "dist"
-  ]
+  ],
+  "dependencies": {
+    "@orch/contracts": "*",
+    "@orch/kernel": "*",
+    "ws": "^8.22.0"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.5.12"
+  }
 }
